@@ -35,6 +35,11 @@ public:
     const FCampusWeeklySchedule& GetSchedule() const { return Schedule; }
 
 private:
+    virtual void BeginPlay() override;
+    void ApplyHeritageMaterials();
+    UPROPERTY()
+    TObjectPtr<UMaterialInterface> HeritageSurface;
+
     // Only the validated game command can purchase and materialize the gym.
     bool ApplyConstruction(const FVector& GroundCenter, int32 QuarterTurns, int64 Minutes);
     UPROPERTY(VisibleAnywhere, Category="Campus")

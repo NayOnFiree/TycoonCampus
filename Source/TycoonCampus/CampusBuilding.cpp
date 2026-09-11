@@ -2,6 +2,7 @@
 #include "Components/BoxComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Materials/MaterialInterface.h"
+#include "Materials/MaterialInstanceDynamic.h"
 #include "Engine/StaticMesh.h"
 #include "UObject/ConstructorHelpers.h"
 #include "CampusClock.h"
@@ -24,6 +25,8 @@ ACampusBuilding::ACampusBuilding()
     SelectionBounds->SetGenerateOverlapEvents(false);
 
     static ConstructorHelpers::FObjectFinder<UStaticMesh> Cube(TEXT("/Engine/BasicShapes/Cube.Cube"));
+    static ConstructorHelpers::FObjectFinder<UMaterialInterface> Surface(TEXT("/Engine/BasicShapes/BasicShapeMaterial.BasicShapeMaterial"));
+    HeritageSurface = Surface.Object;
     static ConstructorHelpers::FObjectFinder<UMaterialInterface> Material(TEXT("/Game/TycoonCampus/Blockout/Materials/M_Selection.M_Selection"));
     static ConstructorHelpers::FObjectFinder<UMaterialInterface> Wall(TEXT("/Game/TycoonCampus/Blockout/Materials/M_Blockout_Wall.M_Blockout_Wall"));
     static ConstructorHelpers::FObjectFinder<UMaterialInterface> Court(TEXT("/Game/TycoonCampus/Blockout/Materials/M_Blockout_Court.M_Blockout_Court"));
@@ -79,6 +82,38 @@ ACampusBuilding::ACampusBuilding()
         Edge->SetCastShadow(false);
         Edge->SetVisibility(false);
         SelectionFrame.Add(Edge);
+    }
+}
+
+void ACampusBuilding::BeginPlay()
+{
+    Super::BeginPlay();
+    ApplyHeritageMaterials();
+}
+
+void ACampusBuilding::ApplyHeritageMaterials()
+{
+    if (!ensureMsgf(HeritageSurface, TEXT("Heritage requires the engine BasicShapeMaterial"))) { return; }
+    auto MakeSurface = [this](const TCHAR* Name, FColor SRGB, float Roughness)
+    {
+        auto* Instance = UMaterialInstanceDynamic::Create(HeritageSurface, this, FName(Name));
+        Instance->SetVectorParameterValue(TEXT("Color"), FLinearColor::FromSRGBColor(SRGB));
+        Instance->SetScalarParameterValue(TEXT("Roughness"), Roughness);
+        return Instance;
+    };
+    auto* Stone = MakeSurface(TEXT("HeritageStone"), FColor(200, 187, 164), 0.85f);
+    auto* Tobacco = MakeSurface(TEXT("HeritageTobacco"), FColor(130, 102, 78), 0.75f);
+    auto* SportsWood = MakeSurface(TEXT("HeritageSportsWood"), FColor(175, 137, 100), 0.65f);
+    // A matte painted finish on the existing thin base; no exposed metallic reflection.
+    auto* DarkMetal = MakeSurface(TEXT("HeritageDarkMetal"), FColor(48, 55, 53), 0.8f);
+    for (int32 Index = 0; Index < GymMeshes.Num(); ++Index)
+    {
+        const auto& Part = CampusGymParts[Index];
+        if (Part.Material == 2) { continue; } // Keep the original court markings.
+        UMaterialInterface* Finish = Part.Material == 1 ? SportsWood : Stone;
+        if (Index == 0) { Finish = DarkMetal; } // Existing floor slab, unchanged geometry.
+        else if (Part.Material == 0 && Part.X == -2000) { Finish = Tobacco; }
+        GymMeshes[Index]->SetMaterial(0, Finish);
     }
 }
 
