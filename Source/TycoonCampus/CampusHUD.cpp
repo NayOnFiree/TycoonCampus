@@ -97,7 +97,7 @@ void ACampusHUD::BuildInterface()
     Menu->AddSlot().AutoHeight().Padding(0,4)[Button(TEXT("Sauvegarder"),[this]() { if(auto* A=Cast<ACampusCameraPawn>(GetOwningPawn())) { A->SaveCampus(); } })];
     Menu->AddSlot().AutoHeight().Padding(0,4)[Button(TEXT("Charger - remplace la partie actuelle"),[this]() { if(auto* A=Cast<ACampusCameraPawn>(GetOwningPawn())) { A->LoadCampus(); } })];
     Menu->AddSlot().AutoHeight().Padding(0,4)[Button(TEXT("Charger la copie precedente"),[this]() { if(auto* A=Cast<ACampusCameraPawn>(GetOwningPawn())) { A->LoadBackup(); } })];
-    Menu->AddSlot().AutoHeight().Padding(0,12)[Label(Text(TEXT("ZQSD : deplacer / clic droit : tourner / molette : zoom\nB : gymnase / C : chemins / R : tourner le placement\nP : planning / Espace : pause / 1, 2, 3 : vitesses\nF5 : sauvegarder / F9 : charger / F10 : copie precedente\nEchap : fermer ce menu en restant en pause")))];
+    Menu->AddSlot().AutoHeight().Padding(0,12)[Label(Text(TEXT("ZQSD : deplacer / clic droit : tourner / molette : zoom\nB : type de construction / C : chemins / R : tourner le placement\nP : planning / Espace : pause / 1, 2, 3 : vitesses\nF5 : sauvegarder / F9 : charger / F10 : copie precedente\nEchap : fermer ce menu en restant en pause")))];
     Menu->AddSlot().AutoHeight().Padding(0,8)[Label(Status)];
     Menu->AddSlot().AutoHeight().Padding(0,4)[Button(TEXT("Quitter la session"),[this]() { bConfirmQuit=true; })];
     Menu->AddSlot().AutoHeight().Padding(0,4)
@@ -131,6 +131,29 @@ void ACampusHUD::ToggleMenu()
 {
     if(auto* A=Cast<ACampusCameraPawn>(GetOwningPawn())) { A->OpenMenu(); }
 }
+
+void ACampusHUD::SetConstructionType(int32 TypeIndex)
+{
+    static const int32 MaxType = 3;
+    ConstructionType = FMath::Clamp(TypeIndex, 0, MaxType);
+}
+
+bool ACampusHUD::IsConstructionTypeAvailable(int32 TypeIndex) const
+{
+    return TypeIndex >= 0 && TypeIndex <= 3;
+}
+
+FText ACampusHUD::GetConstructionTypeName() const
+{
+    switch (GetConstructionType())
+    {
+    case 0: return FText::FromString(TEXT("Gymnase"));
+    case 1: return FText::FromString(TEXT("Terrain de foot"));
+    case 2: return FText::FromString(TEXT("Terrain de tennis"));
+    default: return FText::FromString(TEXT("Décoration"));
+    }
+}
+
 void ACampusHUD::HandleEscape()
 {
     if(auto* A=Cast<ACampusCameraPawn>(GetOwningPawn())) { A->HandleEscape(); }

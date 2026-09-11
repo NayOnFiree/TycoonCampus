@@ -98,6 +98,30 @@ TSharedRef<SWidget> ACampusHUD::BuildHeritageHUD()
     auto Visible=TAttribute<EVisibility>::CreateLambda([this]() { return IsModalOpen()?EVisibility::Collapsed:EVisibility::Visible; });
     auto Money=[](int64 V) { FString S=FString::Printf(TEXT("%lld"),FMath::Abs(V)); for(int I=S.Len()-3;I>0;I-=3) { S.InsertAt(I,TEXT(' ')); } return (V<0?TEXT("-"):TEXT(""))+S+TEXT(" €"); };
     auto Action=[this](int I) { if(auto* P=Cast<ACampusCameraPawn>(GetOwningPawn())) { P->InterfaceAction(I); } };
+    auto TypeName=[this]()
+    {
+        switch (GetConstructionType())
+        {
+        case 0: return FText::FromString(TEXT("Gymnase"));
+        case 1: return FText::FromString(TEXT("Terrain de foot"));
+        case 2: return FText::FromString(TEXT("Terrain de tennis"));
+        default: return FText::FromString(TEXT("Décoration"));
+        }
+    };
+    auto TypeIsEnabled=[this](int32 Index)
+    {
+        return Index >= 0 && Index <= 3;
+    };
+    auto TypeIndexLabel=[this](int32 Index)
+    {
+        switch (Index)
+        {
+        case 0: return FText::FromString(TEXT("Gymnase"));
+        case 1: return FText::FromString(TEXT("Terrain de foot"));
+        case 2: return FText::FromString(TEXT("Terrain de tennis"));
+        default: return FText::FromString(TEXT("Décoration"));
+        }
+    };
     auto Button=[](const TCHAR* Label,TFunction<void()> Click,bool Primary=false)
     {
         return SNew(SButton).ButtonStyle(Primary?&WhitePanelStyle().Primary:&WhitePanelStyle().Secondary).IsFocusable(false).ContentPadding(FMargin(12,10)).HAlign(HAlign_Center)
@@ -144,6 +168,26 @@ TSharedRef<SWidget> ACampusHUD::BuildHeritageHUD()
         Dock->AddSlot().AutoWidth().Padding(0,0,I==4?0:2,0)[SNew(SBox).MinDesiredWidth(66)[SNew(SOverlay)+SOverlay::Slot()[Tile]+SOverlay::Slot()[Selected]]];
     }
     Root->AddSlot().HAlign(HAlign_Left).VAlign(VAlign_Bottom).Padding(16,0,0,16)[SNew(SBox).Visibility(Visible)[Panel(Dock,FMargin(4))]];
+
+    auto TypeBar=SNew(SHorizontalBox);
+    for(int I=0;I<4;++I)
+    {
+        auto IsActive=[this,I]() { return GetConstructionType() == I; };
+        auto IsEnabled=TypeIsEnabled(I);
+        auto ButtonColor=[IsEnabled,IsActive]() { return IsEnabled ? (IsActive() ? Muted : Ink) : FLinearColor(0.68f, 0.70f, 0.68f); };
+        auto TypeButton=SNew(SButton)
+            .ButtonStyle(IsActive() ? &WhitePanelStyle().Selected : (IsEnabled ? &WhitePanelStyle().Secondary : &WhitePanelStyle().Quiet))
+            .IsFocusable(false).ContentPadding(FMargin(8,6))
+            .IsEnabled_Lambda([this,I,TypeIsEnabled]() { return TypeIsEnabled(I); })
+            .ToolTipText_Lambda([this,I,TypeIndexLabel]() { return TypeIndexLabel(I); })
+            .OnClicked_Lambda([this,I,TypeIsEnabled]() { if(TypeIsEnabled(I)) { SetConstructionType(I); } return FReply::Handled(); })
+            [Text(TAttribute<FText>::CreateLambda([this,I,TypeIndexLabel]() { return TypeIndexLabel(I); }),10,ButtonColor(),true)];
+        TypeBar->AddSlot().AutoWidth().Padding(0,0,I==3?0:4,0)[TypeButton];
+    }
+    Root->AddSlot().HAlign(HAlign_Left).VAlign(VAlign_Bottom).Padding(16,0,0,82)[SNew(SBox).Visibility(Visible)[Panel(SNew(SVerticalBox)
+        + SVerticalBox::Slot().AutoHeight().Padding(0,0,0,4)[Text(FText::FromString(TEXT("Type de construction")),9,Muted)]
+        + SVerticalBox::Slot().AutoHeight().Padding(0,0,0,4)[TypeBar]
+        + SVerticalBox::Slot().AutoHeight().Padding(0,4,0,0)[Text(TAttribute<FText>::CreateLambda([this]() { return FText::FromString(FString::Printf(TEXT("Type actif : %s"), *TypeName().ToString())); }),9,Accent)]]);
 
     auto ClockBox=SNew(SVerticalBox);
     ClockBox->AddSlot().AutoHeight().Padding(12,8,12,0)[SNew(SHorizontalBox)
