@@ -71,3 +71,17 @@ Validation : sept suites natives réussies (Saved/Tests/Native/fb8780ecf01e4e85a
 La session d'éditeur du joueur n'a pas été fermée et n'a pas reçu la nouvelle DLL. Charger cette version dans la session habituelle nécessite une compilation Editor après fermeture, puis réouverture. Les tests moteur utilisent NullRHI ; ils ne constituent pas un nouvel essai des gestes souris.
 
 Prochain sous-jalon : extraire la commande d'achat/suppression des chemins selon le même principe, puis centraliser les transitions entre outils. Pas de deuxième bâtiment lancé.
+
+## Git, collaboration et CI — 11 septembre 2026
+
+Dépôt public NayOnFiree/TycoonCampus initialisé et publié après autorisation explicite du joueur. Git LFS suit les assets Unreal et médias ; caches, sauvegardes, worktrees et runner sont exclus. Un clone neuf et l'intégrité de la carte LFS ont été vérifiés. Le jeton Android File Server local est conservé sous Saved/LocalConfig et absent du dépôt ; ce service Android inutilisé est désactivé dans la configuration commune.
+
+Trois branches et worktrees préparés : work/jouabilite, work/ui-ux, work/graphisme sous .worktrees. Les conversations correspondantes ne sont pas créées automatiquement. AGENTS.md, Docs/Collaboration.md, README, CODEOWNERS, modèle de PR et étiquettes par domaine définissent les responsabilités et l'intégration.
+
+Main protégée : PR, Native tests requis et à jour, résolution des conversations, historique linéaire, aucun force-push ni suppression ; protection appliquée aussi aux administrateurs. Fusion squash ; aucun second approbateur imposé au développeur solo. Les branches des domaines sont conservées après fusion.
+
+Tests : sept suites réussies sur Windows après adaptation du lanceur à PowerShell multiplateforme, puis workflow Native tests réussi sur Ubuntu GitHub avec archivage des rapports. Exécution : https://github.com/NayOnFiree/TycoonCampus/actions/runs/34608655310. Rapport local : Saved/Tests/Native/a9f4e4d0f65c4fc9a456d032449154dc/results.json.
+
+Workflow Unreal integration préparé, manuel sur main, distinct de la CI native. Distribution officielle du runner Windows téléchargée et SHA256 vérifié sous .ci-runner. Son enregistrement et son démarrage sur ce PC nécessitent encore l'autorisation explicite demandée au joueur ; aucun runner local n'est présenté comme actif à ce stade. Script de démarrage fourni pour la machine une fois enregistrée. Aucun service de démarrage Windows installé.
+
+Jalon : infrastructure de collaboration préparée, pas de nouvelle mécanique. Suite : ouvrir les tâches spécialisées dans leurs worktrees, puis poursuivre les chemins côté jouabilité. Les tests visuels, gestes réels et packaging restent des chantiers distincts.
