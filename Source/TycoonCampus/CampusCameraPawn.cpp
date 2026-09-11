@@ -138,7 +138,14 @@ void ACampusCameraPawn::ToggleSimulationPause()
 
 void ACampusCameraPawn::SelectUnderCursor()
 {
-    HandleWorldPress(IsCursorOverTerrain());
+    if(!FSlateApplication::IsInitialized()) { HandleWorldPress(false); return; }
+    auto& Slate=FSlateApplication::Get();
+    HandleWorldPress(Slate.LocateWindowUnderMouse(Slate.GetCursorPos(),Slate.GetInteractiveTopLevelWindows()));
+}
+
+void ACampusCameraPawn::HandleWorldPress(const FWidgetPath& Hit)
+{
+    HandleWorldPress(IsTerrainHit(Hit));
 }
 
 void ACampusCameraPawn::HandleWorldPress(bool OverTerrain)
@@ -408,6 +415,11 @@ bool ACampusCameraPawn::IsCursorOverTerrain() const
     if(!FSlateApplication::IsInitialized() || !GetWorld()->GetGameViewport()) { return false; }
     auto& Slate=FSlateApplication::Get();
     const FWidgetPath Hit=Slate.LocateWindowUnderMouse(Slate.GetCursorPos(),Slate.GetInteractiveTopLevelWindows());
+    return IsTerrainHit(Hit);
+}
+bool ACampusCameraPawn::IsTerrainHit(const FWidgetPath& Hit) const
+{
+    if(!GetWorld()->GetGameViewport()) { return false; }
     const auto Viewport=GetWorld()->GetGameViewport()->GetGameViewportWidget();
     return Hit.IsValid() && Viewport.IsValid() && Hit.GetLastWidget()==Viewport.ToSharedRef();
 }

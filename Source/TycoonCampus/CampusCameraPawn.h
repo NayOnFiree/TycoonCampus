@@ -9,6 +9,7 @@
 class UCameraComponent;
 class USpringArmComponent;
 class ACampusBuilding;
+class FWidgetPath;
 
 /** AZERTY movement, right-mouse orbit and smooth wheel zoom around a ground anchor. */
 UCLASS()
@@ -18,6 +19,7 @@ class TYCOONCAMPUS_API ACampusCameraPawn : public APawn
     GENERATED_BODY()
     friend struct FCampusSaveService;
     friend class FCampusBootAndPanelsTest;
+    friend class FCampusToolInputTest;
 
 public:
     ACampusCameraPawn();
@@ -62,6 +64,8 @@ private:
     void SetToolMode(ECampusToolMode Mode);
     void ClearPendingGesture();
     void HandleWorldPress(bool OverTerrain);
+    void HandleWorldPress(const FWidgetPath& Hit);
+    bool IsTerrainHit(const FWidgetPath& Hit) const;
     void MoveForward(float Value);
     void ToggleConstruction();
     void TogglePaths();
