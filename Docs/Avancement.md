@@ -84,4 +84,35 @@ Tests : sept suites réussies sur Windows après adaptation du lanceur à PowerS
 
 Workflow Unreal integration configuré, manuel sur main, distinct de la CI native. Distribution officielle du runner Windows téléchargée et SHA256 vérifié sous .ci-runner. Après autorisation explicite du joueur, runner TycoonCampus-local enregistré pour ce dépôt et démarré en arrière-plan ; variable UE_ENGINE_ROOT définie. Première exécution GitHub réussie : compilation Editor, scénario moteur (1 succès, 0 échec) et archivage des rapports, https://github.com/NayOnFiree/TycoonCampus/actions/runs/34609101364. Script Start-UnrealRunner.ps1 fourni pour le relancer après redémarrage ; détection d'une instance déjà active vérifiée. Aucun service de démarrage Windows installé. La session Unreal du joueur est conservée.
 
+## Intégration des trois domaines — 11 septembre 2026
+
+Jouabilité : achat et suppression des chemins centralisés dans `FCampusPathService`,
+transitions exclusives entre construction, chemins, sélection, planning et menu, puis
+automatisation des vrais bindings clavier et de la frontière Slate qui bloque les clics
+monde derrière un panneau. Le format de sauvegarde et les règles économiques restent
+inchangés.
+
+UI/UX : planning dimensionné depuis la géométrie réellement allouée par Slate. En espace
+compact, la semaine et le détail alternent ; formulaire, refus et actions restent
+accessibles et le focus rejoint le formulaire. Un harnais D3D12 produit une matrice de
+captures en 1280 x 720 et 1920 x 1080 aux échelles UI 1,00 / 1,25 / 1,50, avec
+métadonnées de géométrie. Les douze captures ont été observées. Le DPI de la fenêtre
+mesuré était 1,00 : les échelles 1,25 / 1,50 stressent Slate mais ne simulent pas un
+Windows réellement configuré à 125 / 150 %. Restent visibles : glyphe pause U+2161
+absent, titre CAMPUS et symbole euro pouvant revenir à la ligne, fiche proche de
+l'horloge en 720p à 150 %.
+
+Graphisme : bible Heritage et pilote limités au gymnase. Quatre instances de matière
+issues du matériau standard Unreal appliquent pierre chaude, entrée tabac, bois sportif
+et socle sombre sans nouvel asset 3D, texture tierce ni Blender. Géométrie, collisions,
+sélection, carte, chemins, simulation et sauvegarde sont conservés. Quatre comparaisons
+blockout / Heritage en 720p et 1080p sont versionnées sous LFS. La dalle sombre reste à
+apprécier en jeu ; gestes réels, quatre orientations et performances ne sont pas encore
+mesurés.
+
+Validation avant fusion : chaque pile a réussi ses suites natives, sa compilation Editor
+et ses scénarios Unreal isolés ; les branches publiées ont une CI native verte. La branche
+d'intégration réunit les trois piles pour un dernier passage natif et Unreal avant fusion
+sur `main`. Aucun test isolé n'a fermé l'éditeur du joueur ni utilisé sa sauvegarde.
+
 Jalon : infrastructure de collaboration préparée, pas de nouvelle mécanique. Suite : ouvrir les tâches spécialisées dans leurs worktrees, puis poursuivre les chemins côté jouabilité. Les tests visuels, gestes réels et packaging restent des chantiers distincts.
