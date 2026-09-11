@@ -1,0 +1,32 @@
+# Unreal generated data (including plugin-generated folders)
+Binaries/
+DerivedDataCache/
+Intermediate/
+Saved/
+Build/
+# IDE-generated projects; keep .vsconfig and .uproject
+.vs/
+.idea/
+*.sln
+*.slnx
+*.vcxproj*
+*.suo
+*.sdf
+*.opensdf
+*.VC.db
+*.VC.opendb
+UpgradeLog*.htm
+# Local worktrees, CI runner installation and private configuration
+.worktrees/
+.ci-runner/
+.env
+.env.*
+!.env.example
+Config/*Local.ini
+# OS/editor scratch
+.DS_Store
+Thumbs.db
+*.tmp
+*.bak
+__pycache__/
+*.pyc

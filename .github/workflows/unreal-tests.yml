@@ -1,0 +1,41 @@
+name: Unreal integration
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: unreal-local-runner
+  cancel-in-progress: false
+
+jobs:
+  unreal:
+    name: Unreal integration
+    # Never execute fork PR code automatically on the developer's machine.
+    if: github.ref == 'refs/heads/main'
+    runs-on: [self-hosted, Windows, X64, ue-5.8]
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          lfs: true
+          persist-credentials: false
+      - name: Build editor and run integration tests
+        shell: pwsh
+        env:
+          UE_ENGINE_ROOT: ${{ vars.UE_ENGINE_ROOT }}
+        run: |
+          if (!$env:UE_ENGINE_ROOT) { throw 'Set repository variable UE_ENGINE_ROOT first.' }
+          ./Scripts/Test-Unreal.ps1 -EngineRoot $env:UE_ENGINE_ROOT -TimeoutSeconds 300
+      - name: Upload build logs and Unreal reports
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: unreal-test-reports
+          path: |
+            Saved/Tests/Unreal/**/index.json
+            Saved/Tests/Unreal/**/*.log
+          if-no-files-found: warn
+          retention-days: 14
