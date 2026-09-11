@@ -176,9 +176,9 @@ void SCampusPlanningPanel::Construct(const FArguments& Args)
                     + SWrapBox::Slot().Padding(0, 0, 12, 0)
                     [QuietButton(TAttribute<FText>::CreateLambda([this]() { return FText::FromString(bConfirmDelete ? TEXT("Confirmer la suppression") : TEXT("Supprimer")); }), [this]() { return DeleteReservation(); })]
                     + SWrapBox::Slot()
-                    [QuietButton(FText::FromString(TEXT("Garder la reservation")), [this]() { bConfirmDelete = false; return FReply::Handled(); })
+                    [SNew(SBox)
                         .Visibility_Lambda([this]() { return bConfirmDelete ? EVisibility::Visible : EVisibility::Collapsed; })
-                        ]
+                        [QuietButton(FText::FromString(TEXT("Garder la reservation")), [this]() { bConfirmDelete = false; return FReply::Handled(); })]]
                 ]
                 + SVerticalBox::Slot().AutoHeight().Padding(0, 4, 0, 0)
                 [SNew(SBox).MaxDesiredHeight(84)
