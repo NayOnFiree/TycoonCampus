@@ -40,7 +40,7 @@ namespace
             auto V=HUD->GetWorld()->GetGameViewport()->GetGameViewportWidget();
             if((!V.IsValid() || (!V->HasKeyboardFocus() && !V->HasFocusedDescendants()))
                 && (!HasInterfaceFocus || !HasInterfaceFocus())) { return false; }
-            if(!Event.IsRepeat()) { HUD->ToggleMenu(); }
+            if(!Event.IsRepeat()) { HUD->HandleEscape(); }
             return true;
         }
     };
@@ -59,7 +59,7 @@ namespace
         virtual FReply OnPreviewKeyDown(const FGeometry&,const FKeyEvent& E) override
         {
             if(!HUD.IsValid()) { return FReply::Unhandled(); }
-            if(E.GetKey()==EKeys::Escape) { if(!E.IsRepeat()) { HUD->ToggleMenu(); } return FReply::Handled(); }
+            if(E.GetKey()==EKeys::Escape) { if(!E.IsRepeat()) { HUD->HandleEscape(); } return FReply::Handled(); }
             if(HUD->IsMenuOpen())
             {
                 if(!E.IsRepeat()) { if(auto* A=Cast<ACampusCameraPawn>(HUD->GetOwningPawn()))
@@ -129,14 +129,11 @@ void ACampusHUD::BuildInterface()
 
 void ACampusHUD::ToggleMenu()
 {
-    ClosePlanning(); bMenuOpen=!bMenuOpen; bConfirmQuit=false;
-    if(auto* A=Cast<ACampusCameraPawn>(GetOwningPawn())) { A->CancelTools(); }
-    if(bMenuOpen)
-    {
-        if(auto* C=Actor<ACampusClock>(GetWorld()); C && !C->IsSimulationPaused()) { C->TogglePause(); }
-        FSlateApplication::Get().SetKeyboardFocus(Interface,EFocusCause::SetDirectly);
-    }
-    else { FSlateApplication::Get().SetAllUserFocusToGameViewport(); }
+    if(auto* A=Cast<ACampusCameraPawn>(GetOwningPawn())) { A->OpenMenu(); }
+}
+void ACampusHUD::HandleEscape()
+{
+    if(auto* A=Cast<ACampusCameraPawn>(GetOwningPawn())) { A->HandleEscape(); }
 }
 void ACampusHUD::OpenPage(int32 Page)
 {
@@ -152,19 +149,38 @@ void ACampusHUD::OpenAlert()
 }
 void ACampusHUD::TogglePlanning()
 {
-    if(bMenuOpen) { return; }
-    if (PlanningPanel.IsValid()) { ClosePlanning(); return; }
-    if(auto* A=Cast<ACampusCameraPawn>(GetOwningPawn())) { A->CancelTools(); }
+    if(auto* A=Cast<ACampusCameraPawn>(GetOwningPawn())) { A->RequestToolAction(ECampusToolAction::Planning); }
+}
+
+bool ACampusHUD::ApplyToolMode(ECampusToolMode Mode)
+{
+    if(Mode!=ECampusToolMode::Planning) { ClosePlanning(); }
+    const bool WasMenuOpen=bMenuOpen;
+    bMenuOpen=Mode==ECampusToolMode::Menu;
+    bConfirmQuit=false;
+    if(bMenuOpen)
+    {
+        if(auto* C=Actor<ACampusClock>(GetWorld()); C && !C->IsSimulationPaused()) { C->TogglePause(); }
+        if(Interface.IsValid()) { FSlateApplication::Get().SetKeyboardFocus(Interface,EFocusCause::SetDirectly); }
+    }
+    else if(WasMenuOpen) { FSlateApplication::Get().SetAllUserFocusToGameViewport(); }
+    if(Mode!=ECampusToolMode::Planning || PlanningPanel.IsValid()) { return true; }
     UGameViewportClient* Viewport = GetWorld()->GetGameViewport();
-    if (!Viewport) { return; }
+    if (!Viewport) { return false; }
     ACampusBuilding* Gym = nullptr;
     for (TActorIterator<ACampusBuilding> It(GetWorld()); It; ++It) { Gym = *It; break; }
-    if (!Gym || !Gym->IsBuilt()) { if(auto* A=Cast<ACampusCameraPawn>(GetOwningPawn())) { A->SaveStatus=TEXT("Construisez le gymnase pour ouvrir sa gestion. Bouton Gymnase ou B."); } return; }
+    if (!Gym || !Gym->IsBuilt()) { if(auto* A=Cast<ACampusCameraPawn>(GetOwningPawn())) { A->SaveStatus=TEXT("Construisez le gymnase pour ouvrir sa gestion. Bouton Gymnase ou B."); } return false; }
     SAssignNew(PlanningPanel, SCampusPlanningPanel)
         .Building(Gym)
-        .OnClose(FSimpleDelegate::CreateUObject(this, &ACampusHUD::ClosePlanning));
+        .OnClose(FSimpleDelegate::CreateUObject(this, &ACampusHUD::RequestClosePlanning));
     Viewport->AddViewportWidgetContent(PlanningPanel.ToSharedRef(), 20);
     FSlateApplication::Get().SetKeyboardFocus(PlanningPanel, EFocusCause::SetDirectly);
+    return true;
+}
+
+void ACampusHUD::RequestClosePlanning()
+{
+    if(PlanningPanel.IsValid()) { TogglePlanning(); }
 }
 
 void ACampusHUD::ClosePlanning()

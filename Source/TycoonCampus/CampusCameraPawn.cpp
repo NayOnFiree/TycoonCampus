@@ -16,6 +16,7 @@
 #include "Engine/StaticMeshActor.h"
 #include "DrawDebugHelpers.h"
 #include "CampusPaths.h"
+#include "CampusPathService.h"
 #include "Framework/Application/SlateApplication.h"
 #include "Layout/WidgetPath.h"
 #include "Widgets/SViewport.h"
@@ -69,7 +70,7 @@ void ACampusCameraPawn::SetupPlayerInputComponent(UInputComponent* PlayerInputCo
     Super::SetupPlayerInputComponent(PlayerInputComponent);
     PlayerInputComponent->BindKey(EKeys::E, IE_Pressed, this, &ACampusCameraPawn::OpenPersonnel);
     PlayerInputComponent->BindKey(EKeys::F, IE_Pressed, this, &ACampusCameraPawn::OpenFinance);
-    PlayerInputComponent->BindKey(EKeys::Escape, IE_Pressed, this, &ACampusCameraPawn::OpenMenu);
+    PlayerInputComponent->BindKey(EKeys::Escape, IE_Pressed, this, &ACampusCameraPawn::HandleEscape);
     PlayerInputComponent->BindKey(EKeys::F5, IE_Pressed, this, &ACampusCameraPawn::SaveCampus);
     PlayerInputComponent->BindKey(EKeys::F9, IE_Pressed, this, &ACampusCameraPawn::LoadCampus);
     PlayerInputComponent->BindKey(EKeys::F10, IE_Pressed, this, &ACampusCameraPawn::LoadBackup);
@@ -104,23 +105,12 @@ void ACampusCameraPawn::SetupPlayerInputComponent(UInputComponent* PlayerInputCo
 
 bool ACampusCameraPawn::IsPlanningOpen() const
 {
-    const APlayerController* PC = Cast<APlayerController>(GetController());
-    const ACampusHUD* HUD = PC ? Cast<ACampusHUD>(PC->GetHUD()) : nullptr;
-    return HUD && HUD->IsModalOpen();
+    return FCampusToolMode::IsModal(ToolMode);
 }
 
 void ACampusCameraPawn::TogglePlanning()
 {
-    bConstructing = false;
-    bPathMode = false; PathAnchorX=-1;
-    if (APlayerController* PC = Cast<APlayerController>(GetController()))
-    {
-        if (ACampusHUD* HUD = Cast<ACampusHUD>(PC->GetHUD()))
-        {
-            EndRotation();
-            HUD->TogglePlanning();
-        }
-    }
+    RequestToolAction(ECampusToolAction::Planning);
 }
 
 void ACampusCameraPawn::SetNormalSpeed() { SetSimulationSpeed(1); }
@@ -148,9 +138,22 @@ void ACampusCameraPawn::ToggleSimulationPause()
 
 void ACampusCameraPawn::SelectUnderCursor()
 {
-    if (bIsRotatingCamera || IsPlanningOpen()) { return; }
-    if (bPathMode) { ConfirmPaths(); return; }
-    if (bConstructing) { ConfirmConstruction(); return; }
+    if(!FSlateApplication::IsInitialized()) { HandleWorldPress(false); return; }
+    auto& Slate=FSlateApplication::Get();
+    HandleWorldPress(Slate.LocateWindowUnderMouse(Slate.GetCursorPos(),Slate.GetInteractiveTopLevelWindows()));
+}
+
+void ACampusCameraPawn::HandleWorldPress(const FWidgetPath& Hit)
+{
+    HandleWorldPress(IsTerrainHit(Hit));
+}
+
+void ACampusCameraPawn::HandleWorldPress(bool OverTerrain)
+{
+    if (!FCampusToolMode::AllowsWorldPress(ToolMode, OverTerrain, bIsRotatingCamera))
+    { ClearPendingGesture(); return; }
+    if (IsPathMode()) { ConfirmPaths(); return; }
+    if (IsConstructing()) { ConfirmConstruction(); return; }
     APlayerController* PC = Cast<APlayerController>(GetController());
     if (!PC) { return; }
     FHitResult Hit;
@@ -175,7 +178,7 @@ void ACampusCameraPawn::MoveRight(float Value)
 
 void ACampusCameraPawn::BeginRotation()
 {
-    if (IsPlanningOpen()) { return; }
+    if (IsPlanningOpen() || !IsCursorOverTerrain()) { return; }
     // The viewport owns capture and cursor restoration. Do not switch modes
     // inside the pressed callback: that can disrupt the click's input state.
     PathAnchorX=PathAnchorY=-1;
@@ -245,12 +248,6 @@ void ACampusCameraPawn::Tick(float DeltaSeconds)
     {
         return;
     }
-    // Path rectangles need absolute cursor motion. Hidden capture recentres the
-    // cursor on every mouse move in FSceneViewport, which freezes the rectangle.
-    // Keep the existing capture mode (first-click delivery) and restore camera
-    // cursor hiding after any tool exit, including menu/load/construction.
-    if(auto* Viewport=GetWorld()->GetGameViewport())
-    { Viewport->SetHideCursorDuringCapture(!bPathMode); }
     if (IsPlanningOpen())
     {
         MovementInput = FVector2D::ZeroVector;
@@ -294,8 +291,8 @@ void ACampusCameraPawn::Tick(float DeltaSeconds)
     Position.X = FMath::Clamp(Position.X, -CampusHalfExtent, CampusHalfExtent);
     Position.Y = FMath::Clamp(Position.Y, -CampusHalfExtent, CampusHalfExtent);
     SetActorLocation(Position);
-    if (bConstructing) { UpdateConstruction(true); }
-    if (bPathMode)
+    if (IsConstructing()) { UpdateConstruction(true); }
+    if (IsPathMode())
     {
         // A release consumed by a Slate panel or loss of focus must cancel, never buy later.
         auto* PC=Cast<APlayerController>(GetController());
@@ -307,16 +304,14 @@ void ACampusCameraPawn::Tick(float DeltaSeconds)
 
 void ACampusCameraPawn::ToggleConstruction()
 {
-    if (IsPlanningOpen()) { return; }
-    bPathMode=false; PathAnchorX=-1;
-    bConstructing = !bConstructing;
-    if (bConstructing) { UpdateConstruction(false); }
+    RequestToolAction(ECampusToolAction::Construction);
+    if (IsConstructing()) { UpdateConstruction(false); }
 }
 
 void ACampusCameraPawn::RotateConstruction()
 {
-    if(bPathMode) { return; }
-    if (bConstructing && !IsPlanningOpen())
+    if(IsPathMode()) { return; }
+    if (IsConstructing() && !IsPlanningOpen())
     { ConstructionRotation = (ConstructionRotation + 1) % 4; UpdateConstruction(false); }
 }
 
@@ -325,7 +320,7 @@ void ACampusCameraPawn::UpdateConstruction(bool bDraw)
     bPlacementValid = false;
     auto* PC = Cast<APlayerController>(GetController());
     FVector Origin, Direction;
-    if (!PC || !PC->DeprojectMousePositionToWorld(Origin, Direction) || Direction.Z >= -.001)
+    if (!IsCursorOverTerrain() || !PC || !PC->DeprojectMousePositionToWorld(Origin, Direction) || Direction.Z >= -.001)
     { ConstructionStatus = TEXT("Placez le curseur sur le terrain."); return; }
     const double Distance = -Origin.Z / Direction.Z;
     if (Distance <= 0) { ConstructionStatus = TEXT("Placez le curseur sur le terrain."); return; }
@@ -364,23 +359,19 @@ void ACampusCameraPawn::ConfirmConstruction()
     ACampusBuilding* Built = nullptr;
     const auto Result = FCampusConstructionService::Execute(GetWorld(), Footprint, ConstructionRotation, Built);
     if (Result == ECampusConstructionResult::Success)
-    { SelectedBuilding = Built; bConstructing = false; SaveStatus=TEXT("F5 : sauvegarder / F9 : charger / F10 : copie de secours"); }
+    { SelectedBuilding = Built; SetToolMode(ECampusToolMode::Selection); SaveStatus=TEXT("F5 : sauvegarder / F9 : charger / F10 : copie de secours"); }
     else
     { bPlacementValid = false; ConstructionStatus = FCampusConstructionService::StatusText(Result); }
 }
 
 void ACampusCameraPawn::TogglePaths()
 {
-    if(IsPlanningOpen()) { return; }
-    bConstructing=false; bPathMode=!bPathMode; PathAnchorX=-1;
-    // Apply before the next mouse-down; changing this after capture is too late.
-    if(auto* Viewport=GetWorld()->GetGameViewport())
-    { Viewport->SetHideCursorDuringCapture(!bPathMode); }
-    if(bPathMode) { UpdatePaths(false); }
+    RequestToolAction(ECampusToolAction::Paths);
+    if(IsPathMode()) { UpdatePaths(false); }
 }
 void ACampusCameraPawn::TogglePathErase()
 {
-    if(bPathMode) { bErasePaths=!bErasePaths; PathAnchorX=-1; UpdatePaths(false); }
+    if(IsPathMode()) { bErasePaths=!bErasePaths; ClearPendingGesture(); UpdatePaths(false); }
 }
 void ACampusCameraPawn::UpdatePaths(bool Draw)
 {
@@ -394,11 +385,10 @@ void ACampusCameraPawn::UpdatePaths(bool Draw)
         const int Stride=(PC->IsInputKeyDown(EKeys::LeftShift) || PC->IsInputKeyDown(EKeys::RightShift))?1:2;
         if(!G.MakeRectangle(PathAnchorX<0?PathX:PathAnchorX,PathAnchorX<0?PathY:PathAnchorY,PathX,PathY,Stride))
         { PathStatus=TEXT("Hors parcelle."); return; }
-        const int Price=G.Quote(bErasePaths); int64 Cash=0;
-        for(TActorIterator<ACampusBuilding> B(GetWorld());B;++B) { Cash=B->GetOperations().Cash; break; }
-        bPathValid=Price>=0 && (bErasePaths || Cash>=Price);
-        PathStatus=Price==-2 ? TEXT("Chemin initial protege : impossible de le supprimer.") : Price<0 ? TEXT("Obstacle ou gymnase : trace refuse.")
-            : !bPathValid ? TEXT("Fonds insuffisants pour ce trace.")
+        int32 Price=0;
+        const auto Result=FCampusPathService::Evaluate(GetWorld(),bErasePaths,Price);
+        bPathValid=Result==ECampusPathResult::Success;
+        PathStatus=!bPathValid ? FCampusPathService::StatusText(Result)
             : FString::Printf(TEXT("%s / %d case(s) / %d EUR / %s"),bErasePaths?TEXT("SUPPRESSION sans remboursement"):TEXT("CHEMIN"),G.SegmentCount/(Stride*Stride),Price,
                 PathAnchorX<0?(Stride==2?TEXT("glissez : 4 m / Maj : precision 2 m"):TEXT("glissez : precision 2 m")):TEXT("relachez : poser le rectangle"));
         if(Draw)
@@ -425,6 +415,11 @@ bool ACampusCameraPawn::IsCursorOverTerrain() const
     if(!FSlateApplication::IsInitialized() || !GetWorld()->GetGameViewport()) { return false; }
     auto& Slate=FSlateApplication::Get();
     const FWidgetPath Hit=Slate.LocateWindowUnderMouse(Slate.GetCursorPos(),Slate.GetInteractiveTopLevelWindows());
+    return IsTerrainHit(Hit);
+}
+bool ACampusCameraPawn::IsTerrainHit(const FWidgetPath& Hit) const
+{
+    if(!GetWorld()->GetGameViewport()) { return false; }
     const auto Viewport=GetWorld()->GetGameViewport()->GetGameViewportWidget();
     return Hit.IsValid() && Viewport.IsValid() && Hit.GetLastWidget()==Viewport.ToSharedRef();
 }
@@ -441,19 +436,14 @@ void ACampusCameraPawn::ConfirmPaths()
 }
 void ACampusCameraPawn::FinishPaths()
 {
-    if(!bPathMode || PathAnchorX<0) { return; }
+    if(!IsPathMode() || PathAnchorX<0) { return; }
     if(IsPlanningOpen() || bIsRotatingCamera || !IsCursorOverTerrain()) { PathAnchorX=PathAnchorY=-1; return; }
     UpdatePaths(false);
     PathAnchorX=PathAnchorY=-1;
     if(!bPathValid) { return; }
-    int64 Minutes=480;
-    for(TActorIterator<ACampusClock> It(GetWorld());It;++It) { Minutes=It->GetTotalMinutes(); break; }
-    for(TActorIterator<ACampusPaths> It(GetWorld());It;++It)
-    {
-        const bool Committed=It->Commit(bErasePaths,Minutes);
-        UE_LOG(LogTemp,Display,TEXT("CampusPaths: rectangle release, %d cells, committed=%d"),It->GetGrid().SegmentCount,Committed);
-        break;
-    }
+    const auto Result=FCampusPathService::Execute(GetWorld(),bErasePaths);
+    if(Result!=ECampusPathResult::Success) { PathStatus=FCampusPathService::StatusText(Result); }
+    UE_LOG(LogTemp,Display,TEXT("CampusPaths: rectangle release, committed=%d"),Result==ECampusPathResult::Success);
 }
 
 void ACampusCameraPawn::SaveCampus() { FCampusSaveService::Save(GetWorld(), SaveStatus); }
@@ -462,13 +452,40 @@ void ACampusCameraPawn::LoadBackup() { FCampusSaveService::Load(GetWorld(), true
 
 void ACampusCameraPawn::CancelTools()
 {
-    bConstructing=false; bPathMode=false; PathAnchorX=PathAnchorY=-1;
-    MovementInput=FVector2D::ZeroVector; EndRotation();
+    RequestToolAction(ECampusToolAction::CancelTools);
 }
 void ACampusCameraPawn::OpenMenu()
 {
-    if(auto* PC=Cast<APlayerController>(GetController()))
-    { if(auto* HUD=Cast<ACampusHUD>(PC->GetHUD())) { HUD->ToggleMenu(); } }
+    RequestToolAction(ECampusToolAction::Menu);
+}
+void ACampusCameraPawn::HandleEscape()
+{
+    RequestToolAction(ECampusToolAction::Escape);
+}
+void ACampusCameraPawn::ClearPendingGesture()
+{
+    PathAnchorX=PathAnchorY=-1;
+    bPathValid=false; bPlacementValid=false;
+}
+void ACampusCameraPawn::RequestToolAction(ECampusToolAction Action)
+{
+    const auto Next=FCampusToolMode::Next(ToolMode,Action);
+    if(Next!=ToolMode || Action==ECampusToolAction::CancelTools) { SetToolMode(Next); }
+}
+void ACampusCameraPawn::SetToolMode(ECampusToolMode Mode)
+{
+    ClearPendingGesture();
+    MovementInput=FVector2D::ZeroVector;
+    EndRotation();
+    auto* PC=Cast<APlayerController>(GetController());
+    auto* HUD=PC?Cast<ACampusHUD>(PC->GetHUD()):nullptr;
+    // Window creation can fail (notably planning before construction).
+    if(Mode!=ToolMode)
+    { ToolMode=HUD && HUD->ApplyToolMode(Mode) ? Mode : ECampusToolMode::Selection; }
+    // Paths require absolute cursor motion. Set this before the next mouse-down,
+    // and restore hiding immediately on every exit, including modal/load flows.
+    if(auto* Viewport=GetWorld()->GetGameViewport())
+    { Viewport->SetHideCursorDuringCapture(!IsPathMode()); }
 }
 void ACampusCameraPawn::InterfaceAction(int32 Action)
 {
