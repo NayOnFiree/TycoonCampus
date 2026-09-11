@@ -304,6 +304,14 @@ void ACampusCameraPawn::Tick(float DeltaSeconds)
 
 void ACampusCameraPawn::ToggleConstruction()
 {
+    if (auto* PC = Cast<APlayerController>(GetController()))
+    {
+        if (auto* HUD = Cast<ACampusHUD>(PC->GetHUD()); HUD && !HUD->IsConstructionTypeAvailable(HUD->GetConstructionType()))
+        {
+            SaveStatus = FString::Printf(TEXT("Type indisponible : %s"), *HUD->GetConstructionTypeName().ToString());
+            return;
+        }
+    }
     RequestToolAction(ECampusToolAction::Construction);
     if (IsConstructing()) { UpdateConstruction(false); }
 }
@@ -318,6 +326,15 @@ void ACampusCameraPawn::RotateConstruction()
 void ACampusCameraPawn::UpdateConstruction(bool bDraw)
 {
     bPlacementValid = false;
+    FString TypeLabel;
+    if (const auto* PC = Cast<APlayerController>(GetController()))
+    {
+        if (const auto* HUD = Cast<ACampusHUD>(PC->GetHUD()))
+        {
+            TypeLabel = HUD->GetConstructionTypeName().ToString();
+        }
+    }
+    if (TypeLabel.IsEmpty()) { TypeLabel = TEXT("Gymnase"); }
     auto* PC = Cast<APlayerController>(GetController());
     FVector Origin, Direction;
     if (!IsCursorOverTerrain() || !PC || !PC->DeprojectMousePositionToWorld(Origin, Direction) || Direction.Z >= -.001)
@@ -333,7 +350,7 @@ void ACampusCameraPawn::UpdateConstruction(bool bDraw)
     if(ConstructionRotation==3) { ++Footprint.Y; }
     const auto Result = FCampusConstructionService::Evaluate(GetWorld(), Footprint, ConstructionRotation);
     bPlacementValid = Result == ECampusConstructionResult::Success;
-    ConstructionStatus = FCampusConstructionService::StatusText(Result);
+    ConstructionStatus = FString::Printf(TEXT("%s — %s"), *TypeLabel, *FCampusConstructionService::StatusText(Result));
     if (Result == ECampusConstructionResult::AlreadyBuilt || Result == ECampusConstructionResult::Unavailable) { return; }
     if (!bDraw) { return; }
     const FColor Color = bPlacementValid ? FColor(70, 225, 150) : FColor(255, 70, 60);
@@ -361,7 +378,14 @@ void ACampusCameraPawn::ConfirmConstruction()
     if (Result == ECampusConstructionResult::Success)
     { SelectedBuilding = Built; SetToolMode(ECampusToolMode::Selection); SaveStatus=TEXT("F5 : sauvegarder / F9 : charger / F10 : copie de secours"); }
     else
-    { bPlacementValid = false; ConstructionStatus = FCampusConstructionService::StatusText(Result); }
+    {
+        FString TypeLabel(TEXT("Gymnase"));
+        if (const auto* PC = Cast<APlayerController>(GetController()))
+        {
+            if (const auto* HUD = Cast<ACampusHUD>(PC->GetHUD())) { TypeLabel = HUD->GetConstructionTypeName().ToString(); }
+        }
+        bPlacementValid = false; ConstructionStatus = FString::Printf(TEXT("%s — %s"), *TypeLabel, *FCampusConstructionService::StatusText(Result));
+    }
 }
 
 void ACampusCameraPawn::TogglePaths()

@@ -18,6 +18,7 @@
 #include "CampusBuilding.h"
 #include "Widgets/Input/SComboBox.h"
 #include "Widgets/Layout/SWrapBox.h"
+#include "CampusUIStyle.h"
 
 namespace
 {
@@ -47,6 +48,22 @@ void SCampusPlanningPanel::Construct(const FArguments& Args)
     {
         DurationOptions.Add(MakeShared<FString>(FString::Printf(TEXT("%d h"), Duration)));
     }
+    auto QuietButton=[this](TAttribute<FText> Text, TFunction<FReply()> OnClick)
+    {
+        return SNew(SButton).ButtonStyle(&CampusUI::Theme().Quiet).IsFocusable(false).Text(Text).OnClicked_Lambda([OnClick]() { return OnClick(); });
+    };
+    const auto IsPageActive=[this](int32 Page)
+    {
+        return Page == 0 ? !bManagementOpen : (bManagementOpen && ManagementPage == Page);
+    };
+    auto PageButton=[this,IsPageActive,QuietButton](TAttribute<FText> Text, int32 Page, TFunction<FReply()> OnClick)
+    {
+        return SNew(SButton)
+            .ButtonStyle(IsPageActive(Page) ? &CampusUI::Theme().Primary : &CampusUI::Theme().Quiet)
+            .IsFocusable(false)
+            .OnClicked_Lambda([OnClick]() { return OnClick(); })
+            [SNew(STextBlock).Text(Text).Font(FCoreStyle::GetDefaultFontStyle("Regular", 11)).ColorAndOpacity_Lambda([IsPageActive,Page]() { return FSlateColor(IsPageActive(Page) ? CampusUI::White : CampusUI::Ink); })];
+    };
     TSharedRef<SScrollBox> Vertical = SNew(SScrollBox).ScrollWhenFocusChanges(EScrollWhenFocusChanges::InstantScroll)
         + SScrollBox::Slot()[SAssignNew(TableHost,SBox)[BuildTimetable()]];
     TSharedPtr<SScrollBox> NeedsScroll, MessageScroll;
@@ -64,23 +81,22 @@ void SCampusPlanningPanel::Construct(const FArguments& Args)
                     [SNew(STextBlock).Text_Lambda([this]() { return FText::FromString(bManagementOpen ? (ManagementPage==2 ? TEXT("Finances du campus") : TEXT("Personnel et contrats")) : TEXT("Planning du gymnase")); })
                         .Font(FCoreStyle::GetDefaultFontStyle("Bold", 20)).ColorAndOpacity(Ink)]
                     + SHorizontalBox::Slot().AutoWidth()
-                    [SNew(SButton).Text(FText::FromString(TEXT("Fermer [P]")))
-                        .OnClicked_Lambda([this]() { Close.ExecuteIfBound(); return FReply::Handled(); })]
+                    [QuietButton(FText::FromString(TEXT("Fermer [P]")), [this]() { Close.ExecuteIfBound(); return FReply::Handled(); })]
                 ]
                 + SVerticalBox::Slot().AutoHeight().Padding(0, 0, 0, 6)
                 [SNew(SWrapBox).UseAllottedSize(true)
                     + SWrapBox::Slot().Padding(0,0,6,0)
-                    [SNew(SButton).Text(FText::FromString(TEXT("Planning"))).OnClicked_Lambda([this]() { SetPage(0); return FReply::Handled(); })]
+                    [PageButton(FText::FromString(TEXT("Planning")), 0, [this]() { SetPage(0); return FReply::Handled(); })]
                     + SWrapBox::Slot().Padding(0,0,6,0)
-                    [SNew(SButton).Text(FText::FromString(TEXT("Personnel"))).OnClicked_Lambda([this]() { SetPage(1); return FReply::Handled(); })]
+                    [PageButton(FText::FromString(TEXT("Personnel")), 1, [this]() { SetPage(1); return FReply::Handled(); })]
                     + SWrapBox::Slot().Padding(0,0,6,0)
-                    [SNew(SButton).Text(FText::FromString(TEXT("Finances"))).OnClicked_Lambda([this]() { SetPage(2); return FReply::Handled(); })]
+                    [PageButton(FText::FromString(TEXT("Finances")), 2, [this]() { SetPage(2); return FReply::Handled(); })]
                     + SWrapBox::Slot().Padding(0,0,6,0)
-                    [SNew(SButton).Text_Lambda([this]() { return FText::FromString(bShowNeeds ? TEXT("Masquer besoins") : TEXT("Besoins")); })
+                    [SNew(SButton).ButtonStyle(&CampusUI::Theme().Quiet).Text_Lambda([this]() { return FText::FromString(bShowNeeds ? TEXT("Masquer besoins") : TEXT("Besoins")); })
                         .Visibility_Lambda([this]() { return bManagementOpen ? EVisibility::Collapsed : EVisibility::Visible; })
                         .OnClicked_Lambda([this]() { bShowNeeds=!bShowNeeds; return FReply::Handled(); })]
                     + SWrapBox::Slot()
-                    [SNew(SButton).Text_Lambda([this]() { return FText::FromString(bDetailView ? TEXT("Voir semaine") : TEXT("Voir detail")); })
+                    [SNew(SButton).ButtonStyle(&CampusUI::Theme().Quiet).Text_Lambda([this]() { return FText::FromString(bDetailView ? TEXT("Voir semaine") : TEXT("Voir detail")); })
                         .Visibility_Lambda([this]() { return Layout.Compact && !bManagementOpen ? EVisibility::Visible : EVisibility::Collapsed; })
                         .OnClicked_Lambda([this]() { bDetailView=!bDetailView; return FReply::Handled(); })]
                 ]
@@ -150,22 +166,19 @@ void SCampusPlanningPanel::Construct(const FArguments& Args)
                 [SNew(SWrapBox).UseAllottedSize(true)
                     .Visibility_Lambda([this]() { return SelectedDay != INDEX_NONE ? EVisibility::Visible : EVisibility::Collapsed; })
                     + SWrapBox::Slot().VAlign(VAlign_Bottom).Padding(0, 0, 0, 4)
-                    [SNew(SButton).Text_Lambda([this]() { return FText::FromString(EditingId ? TEXT("Enregistrer") : TEXT("Creer la reservation")); })
-                        .OnClicked(this, &SCampusPlanningPanel::CreateReservation)]
+                    [QuietButton(TAttribute<FText>::CreateLambda([this]() { return FText::FromString(EditingId ? TEXT("Enregistrer") : TEXT("Creer la reservation")); }), [this]() { return CreateReservation(); })]
                 ]
                 + SVerticalBox::Slot().AutoHeight().Padding(0, 4, 0, 0)
                 [SNew(SWrapBox).UseAllottedSize(true)
                     .Visibility_Lambda([this]() { return !bManagementOpen && EditingId ? EVisibility::Visible : EVisibility::Collapsed; })
                     + SWrapBox::Slot().Padding(0, 0, 12, 0)
-                    [SNew(SButton).Text(FText::FromString(TEXT("Annuler les changements")))
-                        .OnClicked_Lambda([this]() { SelectCell(SelectedDay, SelectedHour); return FReply::Handled(); })]
+                    [QuietButton(FText::FromString(TEXT("Annuler les changements")), [this]() { SelectCell(SelectedDay, SelectedHour); return FReply::Handled(); })]
                     + SWrapBox::Slot().Padding(0, 0, 12, 0)
-                    [SNew(SButton).Text_Lambda([this]() { return FText::FromString(bConfirmDelete ? TEXT("Confirmer la suppression") : TEXT("Supprimer")); })
-                        .OnClicked(this, &SCampusPlanningPanel::DeleteReservation)]
+                    [QuietButton(TAttribute<FText>::CreateLambda([this]() { return FText::FromString(bConfirmDelete ? TEXT("Confirmer la suppression") : TEXT("Supprimer")); }), [this]() { return DeleteReservation(); })]
                     + SWrapBox::Slot()
-                    [SNew(SButton).Text(FText::FromString(TEXT("Garder la reservation")))
+                    [QuietButton(FText::FromString(TEXT("Garder la reservation")), [this]() { bConfirmDelete = false; return FReply::Handled(); })
                         .Visibility_Lambda([this]() { return bConfirmDelete ? EVisibility::Visible : EVisibility::Collapsed; })
-                        .OnClicked_Lambda([this]() { bConfirmDelete = false; return FReply::Handled(); })]
+                        ]
                 ]
                 + SVerticalBox::Slot().AutoHeight().Padding(0, 4, 0, 0)
                 [SNew(SBox).MaxDesiredHeight(84)
@@ -219,13 +232,14 @@ TSharedRef<SWidget> SCampusPlanningPanel::MakeManagement()
             + SVerticalBox::Slot().AutoHeight().Padding(0, 8)
             [SNew(STextBlock).Text(FText::FromString(TEXT("Camille Martin / Enseignement, entrainement, cours public\nDisponibilite : lundi-vendredi 08-20 / Salaire : 600 EUR par semaine"))).AutoWrapText(true).ColorAndOpacity(Ink)]
             + SVerticalBox::Slot().AutoHeight().Padding(0, 4)
-            [SNew(SButton).Text_Lambda([this]() { return FText::FromString(Building.IsValid() && Building->GetSchedule().IsStaffHired() ? TEXT("Camille recrutee") : TEXT("Recruter Camille - 600 EUR / semaine")); })
+            [SNew(SButton).ButtonStyle(&CampusUI::Theme().Quiet).IsFocusable(false)
                 .IsEnabled_Lambda([this]() { return Building.IsValid() && !Building->GetSchedule().IsStaffHired() && Building->GetOperations().Cash >= 0; })
-                .OnClicked_Lambda([this]() { if (Building.IsValid() && Building->GetOperations().Cash >= 0) { Building->GetSchedule().HireStaff(); } return FReply::Handled(); })]
+                    .Text_Lambda([this]() { return FText::FromString(Building.IsValid() && Building->GetSchedule().IsStaffHired() ? TEXT("Camille recrutee") : TEXT("Recruter Camille - 600 EUR / semaine")); })
+                    .OnClicked_Lambda([this]() { if (Building.IsValid() && Building->GetOperations().Cash >= 0) { Building->GetSchedule().HireStaff(); } return FReply::Handled(); })]
             + SVerticalBox::Slot().AutoHeight().Padding(0, 8)
             [SNew(STextBlock).Text(FText::FromString(TEXT("Offre club : vendredi 20-22 / 20 participants / 300 EUR apres prestation\nAccepter, puis creer une location vendredi 20-22 et lui associer le contrat. Offre ponctuelle pour la semaine indiquee."))).AutoWrapText(true).ColorAndOpacity(Ink)]
             + SVerticalBox::Slot().AutoHeight().Padding(0, 4)
-            [SNew(SButton).Text_Lambda([this]() { return FText::FromString(FString::Printf(TEXT("Accepter l'offre - semaine %lld"), Building.IsValid() ? Building->GetOperations().OfferedWeek() + 1 : 1)); })
+            [SNew(SButton).ButtonStyle(&CampusUI::Theme().Quiet).IsFocusable(false).Text_Lambda([this]() { return FText::FromString(FString::Printf(TEXT("Accepter l'offre - semaine %lld"), Building.IsValid() ? Building->GetOperations().OfferedWeek() + 1 : 1)); })
                 .IsEnabled_Lambda([this]() { if (!Building.IsValid()) { return false; } const auto& O = Building->GetOperations(); return O.ContractState != 1 && O.ContractWeek != O.OfferedWeek(); })
                 .OnClicked_Lambda([this]() { if (Building.IsValid()) { Building->GetOperations().AcceptContract(); } return FReply::Handled(); })]
             + SVerticalBox::Slot().AutoHeight().Padding(0, 12)
@@ -234,7 +248,7 @@ TSharedRef<SWidget> SCampusPlanningPanel::MakeManagement()
                 const TCHAR* State=O.ContractState==1?(S.HasContractBooking()?TEXT("Accepte et programme"):TEXT("Accepte : reservation manquante")):O.ContractState==2?TEXT("Honore"):O.ContractState==3?TEXT("Manque"):TEXT("Disponible");
                 return FText::FromString(FString::Printf(TEXT("Charge de Camille : %d / 60 h\nSeances sans encadrant : %d\nContrat : %s"),S.GetStaffHours(),S.GetUnstaffedCount(),State));
             }).AutoWrapText(true).ColorAndOpacity(Ink)]
-            + SVerticalBox::Slot().AutoHeight().Padding(0,8)[SNew(SButton).Text(FText::FromString(TEXT("Ouvrir une seance a corriger"))).OnClicked_Lambda([this]() { SelectFirstAlert(); return FReply::Handled(); })]
+            + SVerticalBox::Slot().AutoHeight().Padding(0,8)[SNew(SButton).ButtonStyle(&CampusUI::Theme().Quiet).IsFocusable(false).Text(FText::FromString(TEXT("Ouvrir une seance a corriger"))).OnClicked_Lambda([this]() { SelectFirstAlert(); return FReply::Handled(); })]
         ];
 }
 
@@ -500,7 +514,7 @@ TSharedRef<SWidget> SCampusPlanningPanel::BuildTimetable()
         const int Span=R && H>=R->StartHour ? R->EndHour()-H : 1;
         Grid->AddSlot(Day+1,H-7).RowSpan(Span).Padding(1)
         [SNew(SBox).HeightOverride(32*Span-2)
-            [SNew(SButton).ContentPadding(FMargin(6,2)).ToolTipText_Lambda([this,Day,H]() { return GetCellTooltip(Day,H); })
+            [SNew(SButton).ButtonStyle(&CampusUI::Theme().Quiet).ContentPadding(FMargin(6,2)).ToolTipText_Lambda([this,Day,H]() { return GetCellTooltip(Day,H); })
                 .ButtonColorAndOpacity_Lambda([this,Day,H]() { return GetCellColor(Day,H); })
                 .OnClicked_Lambda([this,Day,H]()
                 {

@@ -19,6 +19,10 @@ public:
     virtual void DrawHUD() override;
     void OpenPage(int32 Page);
     void ToggleMenu();
+    void SetConstructionType(int32 TypeIndex);
+    int32 GetConstructionType() const { return ConstructionType; }
+    bool IsConstructionTypeAvailable(int32 TypeIndex) const;
+    FText GetConstructionTypeName() const;
     void HandleEscape();
     bool IsMenuOpen() const { return bMenuOpen; }
     bool IsModalOpen() const { return bMenuOpen || IsPlanningOpen(); }
@@ -38,4 +42,5 @@ private:
     bool bConfirmQuit=false;
     TSharedPtr<SCampusPlanningPanel> PlanningPanel;
     TWeakObjectPtr<ACampusClock> Clock;
+    int32 ConstructionType = 0;
 };

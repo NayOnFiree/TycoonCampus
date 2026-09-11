@@ -84,7 +84,6 @@ Tests : sept suites réussies sur Windows après adaptation du lanceur à PowerS
 
 Workflow Unreal integration configuré, manuel sur main, distinct de la CI native. Distribution officielle du runner Windows téléchargée et SHA256 vérifié sous .ci-runner. Après autorisation explicite du joueur, runner TycoonCampus-local enregistré pour ce dépôt et démarré en arrière-plan ; variable UE_ENGINE_ROOT définie. Première exécution GitHub réussie : compilation Editor, scénario moteur (1 succès, 0 échec) et archivage des rapports, https://github.com/NayOnFiree/TycoonCampus/actions/runs/34609101364. Script Start-UnrealRunner.ps1 fourni pour le relancer après redémarrage ; détection d'une instance déjà active vérifiée. Aucun service de démarrage Windows installé. La session Unreal du joueur est conservée.
 
-## Intégration des trois domaines — 11 septembre 2026
 
 Jouabilité : achat et suppression des chemins centralisés dans `FCampusPathService`,
 transitions exclusives entre construction, chemins, sélection, planning et menu, puis
@@ -115,4 +114,13 @@ et ses scénarios Unreal isolés ; les branches publiées ont une CI native vert
 d'intégration réunit les trois piles pour un dernier passage natif et Unreal avant fusion
 sur `main`. Aucun test isolé n'a fermé l'éditeur du joueur ni utilisé sa sauvegarde.
 
-Jalon : infrastructure de collaboration préparée, pas de nouvelle mécanique. Suite : ouvrir les tâches spécialisées dans leurs worktrees, puis poursuivre les chemins côté jouabilité. Les tests visuels, gestes réels et packaging restent des chantiers distincts.
+## Intégration des trois domaines — 11 septembre 2026
+
+Mise à jour 11 septembre 2026 — préparation "construction multi-types" et harmonisation UI planning/finances :
+
+- Côté jouabilité, la sélection de type de construction est portée par `ACampusHUD` (index, disponibilité, libellé) et le mode B utilise ce choix. Les 4 types (Gymnase, Terrain de foot, Terrain de tennis, Décoration) sont activables côté interface pour répondre à la demande de variantes. La mécanique réelle est encore unifiée (un seul comportement d’application de construction), en attente d’un suivi de géométrie propre aux types.
+- Côté UI/UX, les boutons principaux de `SCampusPlanningPanel` (fermeture + changement de page + actions de réservation + cellule planning) passent par le style projet `CampusUI::Theme().Quiet` pour une tenue homogène avec le HUD Heritage.
+- Côté graphisme, l'option de type de construction est ajoutée dans la barre d’outils Heritage avec style cohérent (`WhitePanelStyle`) et statut actif visible.
+
+- Étape en cours (11/09/2026) : amélioration de la navigation planning/personnel/finances dans `SCampusPlanningPanel` (onglet actif visuel + boutons unifiés) et clarification du statut de construction avec le nom de type actif (`CampusCameraPawn.cpp`).
+État de validation : neuf suites natives réussies (`Saved/Tests/Native/55557bc062eb47f492e81cb1d22fbc98`). Le scénario Unreal a réussi avec le cache DDC mémoire : 3 tests réussis (`TycoonCampus.Runtime.BootAndPanels`, `HeritageMaterials`, `ToolInput`) dans `Saved/Tests/Unreal/2e1ee96400374b6d97ad572f70f8c411`. La recompilation Editor locale reste bloquée par l'environnement .NET 10 absent.
