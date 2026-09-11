@@ -123,4 +123,3 @@ Prochain sous-jalon : observer la matrice DPI et retenir les dimensions effectiv
 implémenter uniquement le conteneur adaptatif et la zone de refus/actions du planning.
 La centralisation future des commandes reste au domaine jouabilité : les appels directs
 Schedule.Add/Update/Remove déjà présents dans Slate ne sont pas étendus ici.
-
