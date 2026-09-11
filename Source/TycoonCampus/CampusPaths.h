@@ -17,7 +17,6 @@ public:
     FCampusPathGrid& GetGrid() { return *GridData; }
     bool HasPathIn(const FCampusFootprint& F) const;
     void SetGym(const FVector& Center, int32 Turns, int64 Minutes);
-    bool Commit(bool Erase, int64 Minutes);
     void Refresh(int64 Minutes);
     bool IsConnected() const { return bConnected; }
     double DistanceMetres() const { return RouteLength / 100.; }

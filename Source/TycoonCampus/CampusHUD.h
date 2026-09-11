@@ -1,6 +1,7 @@
 #pragma once
 #include "CoreMinimal.h"
 #include "GameFramework/HUD.h"
+#include "CampusToolMode.h"
 #include "CampusHUD.generated.h"
 
 class ACampusClock;
@@ -12,11 +13,13 @@ UCLASS()
 class TYCOONCAMPUS_API ACampusHUD : public AHUD
 {
     GENERATED_BODY()
+    friend class ACampusCameraPawn;
 public:
     virtual void BeginPlay() override;
     virtual void DrawHUD() override;
     void OpenPage(int32 Page);
     void ToggleMenu();
+    void HandleEscape();
     bool IsMenuOpen() const { return bMenuOpen; }
     bool IsModalOpen() const { return bMenuOpen || IsPlanningOpen(); }
     void OpenAlert();
@@ -24,6 +27,8 @@ public:
     void TogglePlanning();
     bool IsPlanningOpen() const { return PlanningPanel.IsValid(); }
 private:
+    bool ApplyToolMode(ECampusToolMode Mode);
+    void RequestClosePlanning();
     void ClosePlanning();
     void BuildInterface();
     TSharedRef<SWidget> BuildHeritageHUD();

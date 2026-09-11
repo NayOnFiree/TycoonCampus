@@ -3,11 +3,13 @@
 #include "CoreMinimal.h"
 #include "GameFramework/Pawn.h"
 #include "CampusConstruction.h"
+#include "CampusToolMode.h"
 #include "CampusCameraPawn.generated.h"
 
 class UCameraComponent;
 class USpringArmComponent;
 class ACampusBuilding;
+class FWidgetPath;
 
 /** AZERTY movement, right-mouse orbit and smooth wheel zoom around a ground anchor. */
 UCLASS()
@@ -16,12 +18,17 @@ class TYCOONCAMPUS_API ACampusCameraPawn : public APawn
 
     GENERATED_BODY()
     friend struct FCampusSaveService;
+    friend class FCampusBootAndPanelsTest;
+    friend class FCampusToolInputTest;
 
 public:
     ACampusCameraPawn();
     void SaveCampus();
     void InterfaceAction(int32 Action);
     void OpenMenu();
+    void HandleEscape();
+    void RequestToolAction(ECampusToolAction Action);
+    ECampusToolMode GetToolMode() const { return ToolMode; }
     void OpenPersonnel();
     void OpenFinance();
     void CancelTools();
@@ -30,8 +37,8 @@ public:
     FString SaveStatus = TEXT("F5 : sauvegarder / F9 : charger / F10 : copie de secours");
     virtual void Tick(float DeltaSeconds) override;
     virtual void SetupPlayerInputComponent(UInputComponent* PlayerInputComponent) override;
-    bool IsConstructing() const { return bConstructing; }
-    bool IsPathMode() const { return bPathMode; }
+    bool IsConstructing() const { return ToolMode == ECampusToolMode::Construction; }
+    bool IsPathMode() const { return ToolMode == ECampusToolMode::Paths; }
     FString GetPathStatus() const { return PathStatus; }
     FString GetConstructionStatus() const { return ConstructionStatus; }
 
@@ -53,6 +60,12 @@ protected:
     float CampusHalfExtent = 9000.0f;
 
 private:
+    ECampusToolMode ToolMode = ECampusToolMode::Selection;
+    void SetToolMode(ECampusToolMode Mode);
+    void ClearPendingGesture();
+    void HandleWorldPress(bool OverTerrain);
+    void HandleWorldPress(const FWidgetPath& Hit);
+    bool IsTerrainHit(const FWidgetPath& Hit) const;
     void MoveForward(float Value);
     void ToggleConstruction();
     void TogglePaths();
@@ -61,13 +74,12 @@ private:
     void ConfirmPaths();
     void FinishPaths();
     bool IsCursorOverTerrain() const;
-    bool bPathMode=false, bErasePaths=false, bVerticalPath=false, bPathValid=false;
+    bool bErasePaths=false, bPathValid=false;
     int32 PathAnchorX=-1, PathAnchorY=-1, PathX=-1, PathY=-1;
     FString PathStatus;
     void RotateConstruction();
     void UpdateConstruction(bool bDraw);
     void ConfirmConstruction();
-    bool bConstructing = false;
     bool bPlacementValid = false;
     int32 ConstructionRotation = 0;
     FCampusFootprint Footprint;

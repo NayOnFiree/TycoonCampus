@@ -5,7 +5,6 @@
 #include "Materials/MaterialInterface.h"
 #include "Engine/StaticMeshActor.h"
 #include "EngineUtils.h"
-#include "CampusBuilding.h"
 
 ACampusPaths::ACampusPaths()
 {
@@ -57,18 +56,6 @@ void ACampusPaths::SetGym(const FVector& Center,int32 Turns,int64 Minutes)
     Target=Grid.Valid(X,Y) ? Y*100+X : -1;
     Door=FVector(Grid.Center(X),Grid.Center(Y),20);
     Refresh(Minutes);
-}
-bool ACampusPaths::Commit(bool Erase,int64 Minutes)
-{
-    auto& Grid=*GridData;
-    for(TActorIterator<ACampusBuilding> It(GetWorld());It;++It)
-    {
-        auto& O=It->GetOperations(); const int Price=Grid.Quote(Erase);
-        if(!Grid.Apply(Erase,O.Cash)) { return false; }
-        if(Price>0) { O.RecordPathInvestment(Price,Minutes); }
-        Refresh(Minutes); return true;
-    }
-    return false;
 }
 void ACampusPaths::Refresh(int64 Minutes)
 {
