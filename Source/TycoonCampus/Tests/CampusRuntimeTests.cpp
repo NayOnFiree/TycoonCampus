@@ -65,6 +65,28 @@ bool FCampusBootAndPanelsTest::RunTest(const FString& Parameters)
     if (!TestTrue(TEXT("Map has a legal gym placement"), FoundPlacement)) { return false; }
     ACampusBuilding* Constructed = Building;
     auto& Operations = Building->GetOperations();
+    auto* Pawn = Cast<ACampusCameraPawn>(PC->GetPawn());
+    using M = ECampusToolMode;
+    auto ModeIs = [&](const TCHAR* Label, M Mode)
+    {
+        TestTrue(Label, Pawn->GetToolMode()==Mode);
+        TestEqual(TEXT("Construction view matches mode"), Pawn->IsConstructing(), Mode==M::Construction);
+        TestEqual(TEXT("Path view matches mode"), Pawn->IsPathMode(), Mode==M::Paths);
+        TestEqual(TEXT("Planning view matches mode"), HUD->IsPlanningOpen(), Mode==M::Planning);
+        TestEqual(TEXT("Menu view matches mode"), HUD->IsMenuOpen(), Mode==M::Menu);
+    };
+    Pawn->InterfaceAction(0); ModeIs(TEXT("Construction from UI"), M::Construction);
+    Pawn->InterfaceAction(1); ModeIs(TEXT("Paths replace construction"), M::Paths);
+    Pawn->PathAnchorX=4; Pawn->PathAnchorY=4; Pawn->bPathValid=true;
+    Pawn->HandleEscape(); ModeIs(TEXT("Escape cancels tool without opening menu"), M::Selection);
+    TestEqual(TEXT("Escape cancels pending anchor"), Pawn->PathAnchorX, -1);
+    TestFalse(TEXT("Escape invalidates pending quote"), Pawn->bPathValid);
+    Pawn->HandleEscape(); ModeIs(TEXT("Second escape opens menu"), M::Menu);
+    Pawn->InterfaceAction(0); ModeIs(TEXT("Construction blocked by menu"), M::Menu);
+    HUD->HandleEscape(); ModeIs(TEXT("HUD escape uses same transition"), M::Selection);
+    Pawn->InterfaceAction(1);
+    HUD->TogglePlanning(); ModeIs(TEXT("Unavailable planning returns to selection"), M::Selection);
+    TestFalse(TEXT("Unavailable planning leaves no modal"), HUD->IsModalOpen());
     const FVector InitialLocation = Building->GetActorLocation();
     auto Reject = [&](const TCHAR* Label, const FCampusFootprint& Request, int Turns, R Expected)
     {
@@ -176,6 +198,45 @@ bool FCampusBootAndPanelsTest::RunTest(const FString& Parameters)
     TestEqual(TEXT("Unavailable quote cleared"), Quote, 0);
     HUD->TogglePlanning(); TestTrue(TEXT("Planning opens"), HUD->IsPlanningOpen());
     HUD->TogglePlanning(); TestFalse(TEXT("Planning closes"), HUD->IsModalOpen());
+    Pawn->InterfaceAction(1);
+    Pawn->PathAnchorX=FreeCell%100; Pawn->PathAnchorY=FreeCell/100;
+    HUD->OpenPage(1); ModeIs(TEXT("Personnel replaces paths with planning"), M::Planning);
+    TestEqual(TEXT("Opening modal cancels anchor"), Pawn->PathAnchorX, -1);
+    Pawn->InterfaceAction(1); ModeIs(TEXT("Paths blocked by planning"), M::Planning);
+    HUD->HandleEscape(); ModeIs(TEXT("Escape closes planning without menu"), M::Selection);
+    HUD->OpenPage(2); ModeIs(TEXT("Finance uses planning mode"), M::Planning);
+    Pawn->OpenMenu(); ModeIs(TEXT("Explicit menu replaces planning"), M::Menu);
+    Pawn->CancelTools(); ModeIs(TEXT("Load cleanup retains menu"), M::Menu);
+    Pawn->HandleEscape(); ModeIs(TEXT("Menu escape returns to selection"), M::Selection);
+    TestTrue(TEXT("Closing menu remains paused"), (*TActorIterator<ACampusClock>(World))->IsSimulationPaused());
+
+    const auto BeforeInputGrid=MakeUnique<FCampusPathGrid>(Grid);
+    const auto BeforeInputOperations=MakeUnique<FCampusOperations>(Operations);
+    Pawn->SelectedBuilding=Building;
+    Building->SetSelected(true);
+    // Feed the UI hit classification into the exact handler used by SelectUnderCursor.
+    // The Slate hit test and real mouse gestures still require an interactive check.
+    for(auto Mode : {M::Selection,M::Construction,M::Paths,M::Planning,M::Menu})
+    {
+        Pawn->SetToolMode(Mode);
+        Pawn->PathAnchorX=FreeCell%100; Pawn->PathAnchorY=FreeCell/100;
+        Pawn->bPathValid=true; Pawn->bPlacementValid=true;
+        Pawn->HandleWorldPress(false);
+        Pawn->FinishPaths(); // A later release must not revive the canceled gesture.
+        TestEqual(TEXT("UI press cancels pending path"), Pawn->PathAnchorX, -1);
+        TestFalse(TEXT("UI press clears path validity"), Pawn->bPathValid);
+        TestFalse(TEXT("UI press clears construction validity"), Pawn->bPlacementValid);
+        TestTrue(TEXT("UI press preserves selection"), Pawn->SelectedBuilding.Get()==Building && Building->IsSelected());
+        TestTrue(TEXT("UI press/release preserves grid"), FMemory::Memcmp(BeforeInputGrid.Get(), &Grid, sizeof(Grid))==0);
+        TestTrue(TEXT("UI press/release preserves economy and ledger"), FMemory::Memcmp(BeforeInputOperations.Get(), &Operations, sizeof(Operations))==0);
+        ModeIs(TEXT("UI press does not change mode"),Mode);
+    }
+    Pawn->SetToolMode(M::Paths);
+    Pawn->PathAnchorX=3; Pawn->PathAnchorY=4; Pawn->bIsRotatingCamera=true;
+    Pawn->InterfaceAction(0); ModeIs(TEXT("Construction cancels path gesture and rotation"), M::Construction);
+    TestEqual(TEXT("Transition clears both anchors"), Pawn->PathAnchorY, -1);
+    TestFalse(TEXT("Transition ends rotation"), Pawn->bIsRotatingCamera);
+    Pawn->CancelTools(); ModeIs(TEXT("Cleanup returns to selection"), M::Selection);
     return true;
 }
 #endif

@@ -108,8 +108,7 @@ bool FCampusSaveService::Load(UWorld* W,bool Backup,FString& Status)
 
     if(auto* PC=Cast<APlayerController>(A->GetController()))
     { if(auto* HUD=Cast<ACampusHUD>(PC->GetHUD()); HUD && HUD->IsPlanningOpen()) { HUD->TogglePlanning(); } }
-    A->EndRotation(); A->bConstructing=false; A->bPlacementValid=false; A->bPathMode=false;
-    A->bPathValid=false; A->PathAnchorX=A->PathAnchorY=-1; A->MovementInput=FVector2D::ZeroVector;
+    A->CancelTools();
     A->SetActorLocation(FVector(S.CameraX,S.CameraY,0));
     A->CameraArm->SetRelativeRotation(FRotator(S.CameraPitch,S.CameraYaw,0));
     A->TargetZoomDistance=S.CameraZoom; A->CameraArm->TargetArmLength=S.CameraZoom;

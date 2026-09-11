@@ -419,7 +419,7 @@ FReply SCampusPlanningPanel::OnPreviewKeyDown(const FGeometry& Geometry, const F
     const FKey Key = Event.GetKey();
     if(Key==EKeys::Escape)
     {
-        if(!Event.IsRepeat() && Building.IsValid()) { for(TActorIterator<ACampusHUD> It(Building->GetWorld());It;++It) { It->ToggleMenu(); break; } }
+        if(!Event.IsRepeat() && Building.IsValid()) { for(TActorIterator<ACampusHUD> It(Building->GetWorld());It;++It) { It->HandleEscape(); break; } }
         return FReply::Handled();
     }
     if (Key == EKeys::F5 || Key == EKeys::F9 || Key == EKeys::F10)
