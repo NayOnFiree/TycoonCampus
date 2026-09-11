@@ -122,6 +122,12 @@ TSharedRef<SWidget> ACampusHUD::BuildHeritageHUD()
         default: return FText::FromString(TEXT("Décoration"));
         }
     };
+    auto ActiveTypeText=TAttribute<FText>::CreateLambda([this]()
+    {
+        return FText::Format(
+            FText::FromString(TEXT("Type actif : {0}")),
+            GetConstructionTypeName());
+    });
     auto Button=[](const TCHAR* Label,TFunction<void()> Click,bool Primary=false)
     {
         return SNew(SButton).ButtonStyle(Primary?&WhitePanelStyle().Primary:&WhitePanelStyle().Secondary).IsFocusable(false).ContentPadding(FMargin(12,10)).HAlign(HAlign_Center)
@@ -187,7 +193,7 @@ TSharedRef<SWidget> ACampusHUD::BuildHeritageHUD()
     Root->AddSlot().HAlign(HAlign_Left).VAlign(VAlign_Bottom).Padding(16,0,0,82)[SNew(SBox).Visibility(Visible)[Panel(SNew(SVerticalBox)
         + SVerticalBox::Slot().AutoHeight().Padding(0,0,0,4)[Text(FText::FromString(TEXT("Type de construction")),9,Muted)]
         + SVerticalBox::Slot().AutoHeight().Padding(0,0,0,4)[TypeBar]
-        + SVerticalBox::Slot().AutoHeight().Padding(0,4,0,0)[Text(TAttribute<FText>::CreateLambda([this]() { return FText::FromString(FString::Printf(TEXT("Type actif : %s"), *GetConstructionTypeName().ToString())); }),9,Accent)]]);
+        + SVerticalBox::Slot().AutoHeight().Padding(0,4,0,0)[Text(ActiveTypeText,9,Accent)]]);
 
     auto ClockBox=SNew(SVerticalBox);
     ClockBox->AddSlot().AutoHeight().Padding(12,8,12,0)[SNew(SHorizontalBox)
