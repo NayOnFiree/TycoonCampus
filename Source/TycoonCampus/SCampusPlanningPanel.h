@@ -2,6 +2,7 @@
 #include "Widgets/SCompoundWidget.h"
 #include "CampusWeeklySchedule.h"
 #include "Widgets/Input/SComboBox.h"
+#include "CampusPlanningLayout.h"
 
 class ACampusBuilding;
 class SBox;
@@ -15,6 +16,7 @@ public:
         SLATE_ARGUMENT(TWeakObjectPtr<ACampusBuilding>, Building)
     SLATE_END_ARGS()
     void Construct(const FArguments& Args);
+    virtual void Tick(const FGeometry& Geometry, double Time, float DeltaTime) override;
     void SetPage(int32 Page) { bManagementOpen=Page!=0; ManagementPage=Page; }
     void SelectFirstAlert();
     virtual bool SupportsKeyboardFocus() const override { return true; }
@@ -23,6 +25,9 @@ public:
     virtual FReply OnMouseButtonDown(const FGeometry&, const FPointerEvent&) override { return FReply::Handled(); }
     virtual FReply OnMouseWheel(const FGeometry&, const FPointerEvent&) override { return FReply::Handled(); }
 private:
+    FCampusPlanningLayout Layout = FCampusPlanningLayout::Evaluate(853.f, 480.f);
+    bool bDetailView = false;
+    bool bShowNeeds = false;
     TSharedPtr<SBox> TableHost;
     TSharedRef<SWidget> BuildTimetable();
     void RefreshTimetable();
