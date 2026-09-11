@@ -16,6 +16,7 @@
 #include "Engine/StaticMeshActor.h"
 #include "DrawDebugHelpers.h"
 #include "CampusPaths.h"
+#include "CampusPathService.h"
 #include "Framework/Application/SlateApplication.h"
 #include "Layout/WidgetPath.h"
 #include "Widgets/SViewport.h"
@@ -394,11 +395,10 @@ void ACampusCameraPawn::UpdatePaths(bool Draw)
         const int Stride=(PC->IsInputKeyDown(EKeys::LeftShift) || PC->IsInputKeyDown(EKeys::RightShift))?1:2;
         if(!G.MakeRectangle(PathAnchorX<0?PathX:PathAnchorX,PathAnchorX<0?PathY:PathAnchorY,PathX,PathY,Stride))
         { PathStatus=TEXT("Hors parcelle."); return; }
-        const int Price=G.Quote(bErasePaths); int64 Cash=0;
-        for(TActorIterator<ACampusBuilding> B(GetWorld());B;++B) { Cash=B->GetOperations().Cash; break; }
-        bPathValid=Price>=0 && (bErasePaths || Cash>=Price);
-        PathStatus=Price==-2 ? TEXT("Chemin initial protege : impossible de le supprimer.") : Price<0 ? TEXT("Obstacle ou gymnase : trace refuse.")
-            : !bPathValid ? TEXT("Fonds insuffisants pour ce trace.")
+        int32 Price=0;
+        const auto Result=FCampusPathService::Evaluate(GetWorld(),bErasePaths,Price);
+        bPathValid=Result==ECampusPathResult::Success;
+        PathStatus=!bPathValid ? FCampusPathService::StatusText(Result)
             : FString::Printf(TEXT("%s / %d case(s) / %d EUR / %s"),bErasePaths?TEXT("SUPPRESSION sans remboursement"):TEXT("CHEMIN"),G.SegmentCount/(Stride*Stride),Price,
                 PathAnchorX<0?(Stride==2?TEXT("glissez : 4 m / Maj : precision 2 m"):TEXT("glissez : precision 2 m")):TEXT("relachez : poser le rectangle"));
         if(Draw)
@@ -446,14 +446,9 @@ void ACampusCameraPawn::FinishPaths()
     UpdatePaths(false);
     PathAnchorX=PathAnchorY=-1;
     if(!bPathValid) { return; }
-    int64 Minutes=480;
-    for(TActorIterator<ACampusClock> It(GetWorld());It;++It) { Minutes=It->GetTotalMinutes(); break; }
-    for(TActorIterator<ACampusPaths> It(GetWorld());It;++It)
-    {
-        const bool Committed=It->Commit(bErasePaths,Minutes);
-        UE_LOG(LogTemp,Display,TEXT("CampusPaths: rectangle release, %d cells, committed=%d"),It->GetGrid().SegmentCount,Committed);
-        break;
-    }
+    const auto Result=FCampusPathService::Execute(GetWorld(),bErasePaths);
+    if(Result!=ECampusPathResult::Success) { PathStatus=FCampusPathService::StatusText(Result); }
+    UE_LOG(LogTemp,Display,TEXT("CampusPaths: rectangle release, committed=%d"),Result==ECampusPathResult::Success);
 }
 
 void ACampusCameraPawn::SaveCampus() { FCampusSaveService::Save(GetWorld(), SaveStatus); }

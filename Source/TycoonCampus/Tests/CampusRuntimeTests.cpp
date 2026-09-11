@@ -12,6 +12,8 @@
 #include "../CampusHUD.h"
 #include "../CampusConstruction.h"
 #include "../CampusConstructionService.h"
+#include "../CampusPathService.h"
+#include "Components/InstancedStaticMeshComponent.h"
 #include "Misc/CommandLine.h"
 #include "Misc/Parse.h"
 
@@ -99,6 +101,79 @@ bool FCampusBootAndPanelsTest::RunTest(const FString& Parameters)
     TestNull(TEXT("Repeated command clears output"), Constructed);
     TestEqual(TEXT("Repeated command never debits twice"), Operations.Cash, static_cast<std::int64_t>(40000));
     TestEqual(TEXT("Exactly one purchase in ledger"), Operations.EntryCount(), 1);
+    using P = ECampusPathResult;
+    int FreeCell = -1, ProtectedCell = -1;
+    for (int I = 0; I < 9999; ++I)
+    {
+        if (Grid.Cells[I] == 1) { ProtectedCell = I; }
+        if (I % 100 < 99 && !Grid.Cells[I] && !Grid.Cells[I+1] && !Grid.Blocked[I] && !Grid.Blocked[I+1])
+        { FreeCell = I; }
+    }
+    if (!TestTrue(TEXT("Map has free pair and protected path"), FreeCell >= 0 && ProtectedCell >= 0)) { return false; }
+    auto* PathMesh = PathActor->FindComponentByClass<UInstancedStaticMeshComponent>();
+    if (!TestNotNull(TEXT("Path instances"), PathMesh)) { return false; }
+    auto SelectPair = [&]() { Grid.MakeRectangle(FreeCell%100, FreeCell/100, FreeCell%100+1, FreeCell/100, 1); };
+    auto Unchanged = [&](const TCHAR* Label, bool Erase, P Expected)
+    {
+        // Full model snapshots include ledger contents, route and the pending selection.
+        const auto BeforeGrid = MakeUnique<FCampusPathGrid>(Grid);
+        const auto BeforeOperations = MakeUnique<FCampusOperations>(Operations);
+        const auto Points = PathActor->RoutePoints();
+        const auto Connected = PathActor->IsConnected();
+        const auto Ready = PathActor->ReadyMinute;
+        const auto Distance = PathActor->DistanceMetres();
+        const auto Instances = PathMesh->GetInstanceCount();
+        const auto Transform = Building->GetActorTransform();
+        int32 Quote = -1;
+        TestTrue(TEXT("Preview and execution agree"), FCampusPathService::Evaluate(World, Erase, Quote) == Expected);
+        TestTrue(Label, FCampusPathService::Execute(World, Erase) == Expected);
+        TestTrue(TEXT("Grid including route and selection unchanged"), FMemory::Memcmp(BeforeGrid.Get(), &Grid, sizeof(Grid)) == 0);
+        TestTrue(TEXT("Budget, investments and full ledger unchanged"), FMemory::Memcmp(BeforeOperations.Get(), &Operations, sizeof(Operations)) == 0);
+        TestTrue(TEXT("World route unchanged"), Points == PathActor->RoutePoints());
+        TestEqual(TEXT("Connectivity unchanged"), PathActor->IsConnected(), Connected);
+        TestEqual(TEXT("Access time unchanged"), PathActor->ReadyMinute, Ready);
+        TestEqual(TEXT("Route distance unchanged"), PathActor->DistanceMetres(), Distance);
+        TestEqual(TEXT("Path instances unchanged"), PathMesh->GetInstanceCount(), Instances);
+        TestTrue(TEXT("Building transform unchanged"), Building->GetActorTransform().Equals(Transform));
+    };
+    SelectPair();
+    int32 Quote = 0;
+    TestTrue(TEXT("Free pair preview accepted"), FCampusPathService::Evaluate(World, false, Quote) == P::Success);
+    TestEqual(TEXT("Legacy cells cost 20 each"), Quote, 40);
+    const auto Budget = Operations.Cash;
+    Operations.Cash = 39;
+    Unchanged(TEXT("Budget changed after preview"), false, P::InsufficientFunds);
+    Operations.Cash = Budget;
+    Grid.Blocked[FreeCell+1] = true;
+    Unchanged(TEXT("Obstacle changed after preview rejects whole pair"), false, P::InvalidOrBlocked);
+    Grid.Blocked[FreeCell+1] = false;
+    const auto EntryCount = Operations.EntryCount();
+    const auto Investment = Operations.Investment;
+    const auto InstanceCount = PathMesh->GetInstanceCount();
+    TestTrue(TEXT("Buy selected pair"), FCampusPathService::Execute(World, false) == P::Success);
+    TestEqual(TEXT("Exact debit"), Operations.Cash, Budget-40);
+    TestEqual(TEXT("One investment entry"), Operations.EntryCount(), EntryCount+1);
+    TestEqual(TEXT("Investment total"), Operations.Investment, Investment+40);
+    TestTrue(TEXT("Both cells purchased"), Grid.Cells[FreeCell] == 2 && Grid.Cells[FreeCell+1] == 2);
+    TestEqual(TEXT("World instances refreshed"), PathMesh->GetInstanceCount(), InstanceCount+2);
+    Unchanged(TEXT("Repeated purchase succeeds without extra debit"), false, P::Success);
+    // Mixed selection must not erase the purchased cell before finding protection.
+    Grid.Segment[1] = ProtectedCell;
+    Unchanged(TEXT("Protected path rejects whole removal"), true, P::ProtectedPath);
+    SelectPair();
+    Operations.Cash = -1; // Removal remains available even with a negative balance.
+    TestTrue(TEXT("Remove pair"), FCampusPathService::Execute(World, true) == P::Success);
+    TestEqual(TEXT("Removal never refunds"), Operations.Cash, static_cast<std::int64_t>(-1));
+    TestEqual(TEXT("Removal does not journal a purchase"), Operations.EntryCount(), EntryCount+1);
+    TestTrue(TEXT("Both cells removed"), Grid.Cells[FreeCell] == 0 && Grid.Cells[FreeCell+1] == 0);
+    TestEqual(TEXT("Removed instances refreshed"), PathMesh->GetInstanceCount(), InstanceCount);
+    Unchanged(TEXT("Repeated removal is harmless"), true, P::Success);
+    Operations.Cash = Budget-40;
+    Grid.SegmentCount = 0;
+    Unchanged(TEXT("Empty selection refused"), false, P::InvalidOrBlocked);
+    Quote = 123;
+    TestTrue(TEXT("Missing world unavailable"), FCampusPathService::Evaluate(nullptr, false, Quote) == P::Unavailable);
+    TestEqual(TEXT("Unavailable quote cleared"), Quote, 0);
     HUD->TogglePlanning(); TestTrue(TEXT("Planning opens"), HUD->IsPlanningOpen());
     HUD->TogglePlanning(); TestFalse(TEXT("Planning closes"), HUD->IsModalOpen());
     return true;

@@ -32,4 +32,22 @@ Résultats du 11 septembre 2026 : sept suites natives réussies et compilation E
 
 ## Suite
 
-Même extraction pour l'achat/suppression des chemins, puis centralisation des transitions entre outils. Le budget global du campus et le multi-bâtiment restent une étape ultérieure : le budget est encore porté par le modèle d'opérations du gymnase.
+L'extraction des chemins est décrite ci-dessous. Prochain sous-jalon : centralisation des transitions entre outils. Le budget global du campus et le multi-bâtiment restent une étape ultérieure : le budget est encore porté par le modèle d'opérations du gymnase.
+
+## Commande commune des chemins — 11 septembre 2026
+
+Jalon actuel : stabilisation des jalons 9–12, extraction de l'achat et de la suppression des chemins.
+
+`FCampusPathService::Evaluate/Execute` remplace `ACampusPaths::Commit` et le contrôle économique du pawn. Le service prend le monde et le mode achat/suppression ; sa requête est la sélection courante de la grille (`Segment`), produite par le rectangle de l'outil. `Evaluate` ne modifie pas cette sélection ni le monde et retourne un résultat explicite avec le devis. `Execute` revalide la sélection et le budget courants, puis utilise l'heure de l'horloge de la session pour le journal et le raccordement. Aucun devis ancien ni horaire arbitraire n'est accepté par l'exécution.
+
+Le service exige un bâtiment, un système de chemins initialisé et une horloge uniques. Il délègue les règles géométriques à `FCampusPathGrid::Quote/Apply` : obstacles de la grille, chemin public protégé, achat atomique et prix des seules cellules neuves. Comme auparavant, les obstacles statiques sont importés au démarrage et l'empreinte du gymnase est ajoutée lors de sa construction. Aucun nouveau scan des acteurs n'est introduit.
+
+Le débit, l'investissement et le journal sont coordonnés sur le thread de jeu, sans opération asynchrone entre validation et application. Seule une exécution acceptée rafraîchit les instances et le parcours. Une répétition d'achat reste un succès à zéro euro, sans nouvelle entrée au journal ; une répétition de suppression est également sans effet économique. La suppression reste sans remboursement, y compris lorsque le solde est négatif. Les coordonnées de 2 m, rectangles de 4 m, précision Maj, gestes, messages existants et format des sauvegardes sont conservés.
+
+Besoin transversal coordonné avec l'intégration : uniquement les blocs d'aperçu et de confirmation des chemins de `CampusCameraPawn.cpp`, plus l'inclusion du service. Aucun changement du HUD, de `CampusBuilding`, des assets ou de `Docs/Avancement.md`.
+
+Le scénario moteur `TycoonCampus.Runtime.BootAndPanels` teste désormais la commande des chemins : devis exact, budget devenu insuffisant après aperçu, obstacle ajouté à la grille après aperçu, suppression mêlant cellule achetée et chemin protégé, achat, suppression sans remboursement avec solde négatif, répétition des deux commandes et sélection vide. Les refus comparent toute la grille (sélection et route comprises), le modèle économique avec le journal complet, les points du parcours, le raccordement, sa date de disponibilité, sa distance, le nombre d'instances et la transformation du gymnase. Les succès contrôlent aussi le débit, l'investissement, le journal et le rafraîchissement des instances.
+
+Validation locale : sept suites natives réussies via `Scripts/Test-Native.ps1`, rapport `Saved/Tests/Native/2b683c577654492b8abd8f7e087c2de4/results.json`. Compilation Editor réussie et scénario Unreal étendu réussi (1 succès, 0 échec) via `Scripts/Test-Unreal.ps1 -Isolated`, rapport `Saved/Tests/Unreal/1bc2b23dd31f439fb4adad9657c76213/index.json`. Les assets LFS du nouveau worktree et de sa copie isolée ont été hydratés avant le chargement de la carte ; aucun asset modifié.
+
+Limites : aucun rendu ni geste souris observé pour cette extraction ; NullRHI valide les commandes et états uniquement. La session Unreal du joueur reste ouverte et sa DLL n'est pas remplacée. Prochain sous-jalon : centraliser les transitions entre outils, après intégration de cette PR.
