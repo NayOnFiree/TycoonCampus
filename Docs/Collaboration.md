@@ -31,7 +31,7 @@ La création des dossiers ne crée pas automatiquement des conversations dans Co
   format de sauvegarde, AGENTS.md, workflows et Avancement.md.
 
 Un fichier partagé n'est pas interdit : une tâche décrit d'abord le besoin et les fichiers
-concernés dans sa livraison, puis son modification est coordonnée avec l'intégration.
+concernés dans sa livraison, puis sa modification est coordonnée avec l'intégration.
 Les .umap/.uasset ne se fusionnent pas comme du texte : un seul propriétaire à la fois,
 avec verrou LFS (`git lfs lock chemin`, puis `git lfs unlock chemin` après intégration).
 Vérifier l'absence de fichiers read-only inattendus et les verrous avant édition dans Unreal.

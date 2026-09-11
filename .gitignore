@@ -3,7 +3,7 @@ Binaries/
 DerivedDataCache/
 Intermediate/
 Saved/
-Build/
+# Keep Build/ authoring resources (icons, platform packaging configuration) versioned.
 # IDE-generated projects; keep .vsconfig and .uproject
 .vs/
 .idea/
